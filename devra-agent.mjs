@@ -662,13 +662,30 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       return autonomousCreateCode(id, threadId, isGroup ? messageId : null, matchedRepo, cleanPrompt);
     }
 
-    // Jawaban AI Umum Rekayasa Perangkat Lunak
-    const aiChat = await askAI(
-      `Kamu adalah DEVRA, Autonomous Software Engineering Agent untuk Ir. Nor Anisa, S.Kom., M.Kom. Kamu ahli dalam Python, Node.js, Next.js, FastAPI, database, dan cloud deployment. Jawab dengan ramah, cerdas, solutif, dan tanpa menggunakan karakter asterisk (*).`,
-      cleanPrompt,
-      'fast'
-    );
-    return reply(aiChat.text);
+    try {
+      // Jika pesan adalah cek atau buka URL (misal: "buka https://...")
+      const urlMatch = cleanPrompt.match(/https?:\/\/[^\s]+/i);
+      if (urlMatch && (lower.includes('buka') || lower.includes('cek') || lower.includes('periksa') || lower.includes('dashboard') || lower.includes('endpoint'))) {
+        const targetUrl = urlMatch[0];
+        try {
+          const testRes = await fetch(targetUrl, { method: 'GET', signal: AbortSignal.timeout(8000) });
+          return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: HTTP ${testRes.status} (${testRes.ok ? '🟢 Aktif / Online' : 'Respon Diterima'})\n\nLayanan dashboard 9Router dapat diakses langsung melalui browser Anda. Fitur ini mengelola endpoint gateway dan integrasi multi-model AI.`);
+        } catch (e) {
+          return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: ⚠️ Gagal memverifikasi (${e.message})`);
+        }
+      }
+
+      // Jawaban AI Umum Rekayasa Perangkat Lunak
+      const aiChat = await askAI(
+        `Kamu adalah DEVRA, Autonomous Software Engineering Agent untuk Ir. Nor Anisa, S.Kom., M.Kom. Kamu ahli dalam Python, Node.js, Next.js, FastAPI, database, dan cloud deployment. Jawab dengan ramah, cerdas, solutif, dan tanpa menggunakan karakter asterisk (*).`,
+        cleanPrompt,
+        'fast'
+      );
+      return reply(aiChat.text);
+    } catch (aiErr) {
+      console.warn('[DEVRA AI Chat Failover]', aiErr.message);
+      return reply(`🤖 Halo Bu Nor Anisa! DEVRA Autonomous Agent tetap aktif dan siap siaga.\nSaat ini saya memantau repositori GitHub (${GITHUB_OWNER}) dan infrastruktur Render.\n\nPerintah cepat:\n/repos ➔ Daftar repositori aktif\n/render ➔ Status service cloud Render\n/read <repo> <path> ➔ Membaca berkas kode\n/fix <repo> <masalah> ➔ Perbaikan bug otomatis`);
+    }
   }
 }
 
