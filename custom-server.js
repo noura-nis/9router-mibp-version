@@ -15,6 +15,7 @@ process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let backgroundRefreshStarted = false;
 let devraStarted = false;
+let globalDevraChild = null;
 
 // -------------------------------------------------------------
 // Supabase Database Persistence & Auto-Sync
@@ -109,6 +110,7 @@ function startDevraAgentFromCustomServer() {
         stdio: "inherit",
         env: { ...process.env }
       });
+      globalDevraChild = child;
       child.on("exit", (code) => {
         console.warn(`[DEVRA] Agent exited with code ${code}. Restarting in 5s...`);
         setTimeout(launch, 5000);
@@ -166,6 +168,26 @@ http.createServer = (...args) => {
   const rest = args.filter((a) => typeof a !== "function");
   if (!handler) return origCreate(...args);
   const wrapped = (req, res) => {
+    // Inter-Agent Collaboration Bus route
+    if (req.method === 'POST' && (req.url === '/api/agent-event' || req.url === '/api/agent-event/')) {
+      let body = '';
+      req.on('data', c => { body += c; });
+      req.on('end', () => {
+        try {
+          const event = JSON.parse(body);
+          if (globalDevraChild && typeof globalDevraChild.send === 'function') {
+            globalDevraChild.send(event);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, received: event.id }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      });
+      return;
+    }
+
     const socketIp = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : "";
     const xff = req.headers["x-forwarded-for"];
     const xRealIp = req.headers["x-real-ip"];
