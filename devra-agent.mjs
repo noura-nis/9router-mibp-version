@@ -593,6 +593,7 @@ Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.
 • Computer Vision & Adapters: Aktif menganalisis screenshot kode, UI bug & arsitektur
 • AI Routing & Gateway: Terkoneksi 9Router MIBP & Bansos Multi-Model (Codestral, DeepSeek, GLM, Fast)
 • Deployment Cloud: Terintegrasi Render Cloud API untuk inspeksi & trigger auto-deploy
+• Cloud Persistence: 7 Provider Aktif (3 Antigravity, 2 Codex, 1 GitHub, 1 Hugging Face - antigrafity) tersimpan di Supabase Cloud
 
 🤝 Status Koordinasi Inter-AI:
 • Dengan OTTEROps: Menerima tiket insiden/crash dari radar sentinel untuk inspeksi & auto-fix kode.
@@ -726,7 +727,7 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     info += `• Persistence Bucket: ${bucket}\n`;
     info += `• Database Target: data.sqlite\n`;
     info += `• Status Auto-Sync: 🟢 Aktif (Snapshot berkala tiap 3 menit & auto-restore saat server boot)\n\n`;
-    info += `Akun AI provider (Mimo, Grok, OpenAI), combos, dan API key tersimpan permanen di cloud Supabase dan tidak akan hilang saat server refresh.`;
+    info += `Akun AI provider (Antigravity, Codex, Hugging Face, GitHub), combos, dan API key tersimpan permanen di cloud Supabase dan tidak akan hilang saat server refresh.`;
     return reply(info);
   }
 
