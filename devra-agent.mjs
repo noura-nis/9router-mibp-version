@@ -207,7 +207,7 @@ async function triggerRenderDeploy(serviceId) {
 // Bansos / 9Router AI Gateway Caller
 // -------------------------------------------------------------
 async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL) {
-  const candidateModels = [preferredModel, 'codestral-latest', 'deepseek-v4.1-flash-free', 'fast'];
+  const candidateModels = [preferredModel, 'antigravity', 'deepseek-v4.1-flash-free', 'glm-5.3-flash-free', 'codestral-latest', 'fast'];
   let lastErr = null;
 
   for (const model of candidateModels) {
@@ -243,6 +243,60 @@ async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL
     }
   }
   throw new Error(`Semua AI model gateway gagal: ${lastErr?.message}`);
+}
+
+async function getTelegramPhotoBase64(fileId) {
+  const fileRes = await telegram('getFile', { file_id: fileId });
+  if (!fileRes?.file_path) throw new Error('Telegram file_path tidak ditemukan.');
+  const fileUrl = `https://api.telegram.org/file/bot${DEVRA_BOT_TOKEN}/${fileRes.file_path}`;
+  const res = await fetch(fileUrl);
+  if (!res.ok) throw new Error(`Gagal mengunduh gambar Telegram: HTTP ${res.status}`);
+  const arrayBuf = await res.arrayBuffer();
+  const buf = Buffer.from(arrayBuf);
+  return `data:image/jpeg;base64,${buf.toString('base64')}`;
+}
+
+async function askVisionAI(systemPrompt, userPrompt, base64Image, preferredModel = 'glm-5.3-flash-free') {
+  const candidateModels = ['antigravity', preferredModel, 'glm-5.3-flash-free', 'mimo-v2.6-flash-free', 'gemini-2.0-flash-exp', 'fast'];
+  let lastErr = null;
+
+  for (const model of candidateModels) {
+    try {
+      const c = new AbortController();
+      const timer = setTimeout(() => c.abort(), 60000);
+      const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: userPrompt || 'Tolong jelaskan dan analisis tangkapan layar ini secara komprehensif.' },
+                { type: 'image_url', image_url: { url: base64Image } }
+              ]
+            }
+          ],
+          temperature: 0.2
+        }),
+        signal: c.signal
+      });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`AI HTTP ${res.status}`);
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (reply) return { text: reply, modelUsed: model };
+    } catch (e) {
+      lastErr = e;
+      continue;
+    }
+  }
+  throw new Error(`Semua AI Vision gateway gagal: ${lastErr?.message}`);
 }
 
 // -------------------------------------------------------------
@@ -419,8 +473,10 @@ async function autonomousCreateCode(chatId, threadId, replyId, repoName, instruc
 // -------------------------------------------------------------
 async function handle(msg) {
   const id = msg.chat?.id;
-  const rawText = msg.text?.trim() || msg.caption?.trim();
-  if (!id || !rawText) return;
+  const rawText = msg.text?.trim() || msg.caption?.trim() || '';
+  const photoList = msg.photo || msg.reply_to_message?.photo;
+  const hasPhoto = Array.isArray(photoList) && photoList.length > 0;
+  if (!id || (!rawText && !hasPhoto)) return;
 
   const isGroup = msg.chat?.type === 'group' || msg.chat?.type === 'supergroup';
   const messageId = msg.message_id;
@@ -447,6 +503,25 @@ async function handle(msg) {
 
   const reply = (text) => send(id, text, isGroup ? messageId : null, threadId);
   const typing = () => sendTyping(id, threadId);
+
+  // Vision Handler: jika ada foto dan ditujukan ke bot (atau perintah /vision)
+  if (hasPhoto && (cmd === '/vision' || isMentioned || isReplyToBot || !isGroup)) {
+    await typing();
+    try {
+      const photo = photoList[photoList.length - 1];
+      const base64Img = await getTelegramPhotoBase64(photo.file_id);
+      const cleanPrompt = txt.replace(new RegExp('@' + botUsername, 'gi'), '').replace(/^\/vision\s*/i, '').trim();
+      const visionRes = await askVisionAI(
+        'Kamu adalah DEVRA, Autonomous Software Engineering Agent dengan kapabilitas Computer Vision cerdas untuk Ir. Nor Anisa, S.Kom., M.Kom. Kamu ahli dalam menganalisis tangkapan layar dashboard, kode program, error console, konfigurasi jaringan/cloud, dan arsitektur sistem. Berikan penjelasan yang komprehensif, teliti, solutif, dan tanpa menggunakan karakter asterisk (*).',
+        cleanPrompt || 'Tolong telusuri dan analisis tangkapan layar ini secara mendalam dan berikan laporan solusinya.',
+        base64Img
+      );
+      return reply(`👁️ [DEVRA Vision Multimodal Analysis]\nModel: ${visionRes.modelUsed}\n\n${visionRes.text}`);
+    } catch (err) {
+      console.error('[DEVRA Vision Error]', err);
+      return reply(`❌ DEVRA Vision gagal menganalisis gambar: ${err.message}`);
+    }
+  }
 
   // 1. /start atau /help
   if (cmd === '/start' || cmd === '/help') {
