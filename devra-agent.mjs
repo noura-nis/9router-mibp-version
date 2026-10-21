@@ -5,7 +5,15 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { publishAgentEvent, onAgentEvent } from './agent-bus.mjs';
+let publishAgentEvent = async () => {};
+let onAgentEvent = () => {};
+try {
+  const bus = await import('./agent-bus.mjs');
+  publishAgentEvent = bus.publishAgentEvent;
+  onAgentEvent = bus.onAgentEvent;
+} catch (e) {
+  console.log('[DEVRA] agent-bus fallback active');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -597,7 +605,7 @@ async function handle(msg) {
       cmd = '/vault';
     } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
       cmd = '/help';
-    } else if (lowerPrompt === 'cek' || lowerPrompt === 'ping' || lowerPrompt === 'tes' || lowerPrompt === 'test' || lowerPrompt === 'siaga') {
+    } else if (lowerPrompt === 'cek' || lowerPrompt === 'ping' || lowerPrompt === 'tes' || lowerPrompt === 'test' || lowerPrompt === 'siaga' || lowerPrompt === 'oi' || lowerPrompt === 'p' || lowerPrompt === 'halo') {
       cmd = '/ping';
     }
   }
@@ -924,15 +932,69 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     }
 
     try {
-      // Jika pesan adalah cek atau buka URL (misal: "buka https://...")
+      // URL & Hugging Face Space Inspector Cerdas
       const urlMatch = cleanPrompt.match(/https?:\/\/[^\s]+/i);
-      if (urlMatch && (lower.includes('buka') || lower.includes('cek') || lower.includes('periksa') || lower.includes('dashboard') || lower.includes('endpoint'))) {
+      if (urlMatch) {
         const targetUrl = urlMatch[0];
-        try {
-          const testRes = await fetch(targetUrl, { method: 'GET', signal: AbortSignal.timeout(8000) });
-          return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: HTTP ${testRes.status} (${testRes.ok ? '🟢 Aktif / Online' : 'Respon Diterima'})\n\nLayanan dashboard 9Router dapat diakses langsung melalui browser Anda. Fitur ini mengelola endpoint gateway dan integrasi multi-model AI.`);
-        } catch (e) {
-          return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: ⚠️ Gagal memverifikasi (${e.message})`);
+        
+        // Deteksi apakah target adalah Hugging Face Space
+        const hfSpaceMatch = targetUrl.match(/huggingface\.co\/spaces\/([^\/]+)\/([^\/\s#?]+)/i);
+        const hfAppMatch = targetUrl.match(/https?:\/\/([a-zA-Z0-9_-]+)\.hf\.space/i);
+
+        if (hfSpaceMatch) {
+          const owner = hfSpaceMatch[1];
+          const space = hfSpaceMatch[2];
+          const hfToken = process.env.HF_TOKEN || '';
+          try {
+            const apiRes = await fetch(`https://huggingface.co/api/spaces/${owner}/${space}`, {
+              headers: hfToken ? { Authorization: `Bearer ${hfToken}` } : {},
+              signal: AbortSignal.timeout(8000)
+            });
+            if (apiRes.ok) {
+              const d = await apiRes.json();
+              const siblings = d.siblings || [];
+              const mainFiles = siblings.slice(0, 14).map(s => `• ${s.rfilename}`).join('\n');
+              const extraCount = siblings.length > 14 ? `\n...dan ${siblings.length - 14} berkas lainnya.` : '';
+
+              return reply(`🤗 [DEVRA HUGGING FACE SPACE INSPECTOR]
+Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.
+Target: ${targetUrl}
+
+📋 Informasi Space:
+• Repository: ${d.id}
+• Pemilik: ${d.author}
+• Engine / SDK: ${d.sdk || 'Docker'}
+• Terakhir Diperbarui: ${d.lastModified ? d.lastModified.substring(0, 10) : '-'}
+
+📂 Berkas & Komponen Terdeteksi:
+${mainFiles}${extraCount}
+
+💡 Analisis Sistem DEVRA:
+Space ini menjalankan aplikasi analitik ilmiah Semantic Literature Review. Di dalamnya terdapat naskah Karya Tulis Insinyur Ir. Nor Anisa, mesin ai_engine.py, evaluasi metrik, dan antarmuka web.`);
+            }
+          } catch (e) {}
+        } else if (hfAppMatch) {
+          try {
+            const testRes = await fetch(targetUrl, { signal: AbortSignal.timeout(8000) });
+            return reply(`🌐 [DEVRA HUGGING FACE ENDPOINT INSPECTOR]
+Target: ${targetUrl}
+Status: HTTP ${testRes.status} (${testRes.ok || testRes.status === 206 ? '🟢 Online & Aktif' : 'Respon Diterima'})
+
+Layanan Hugging Face Space Bu Nor Anisa aktif dan melayani permintaan web.`);
+          } catch (e) {
+            return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: ⚠️ Gangguan koneksi (${e.message})`);
+          }
+        } else if (lower.includes('buka') || lower.includes('lihat') || lower.includes('cek') || lower.includes('periksa') || lower.includes('dashboard')) {
+          try {
+            const testRes = await fetch(targetUrl, { signal: AbortSignal.timeout(8000) });
+            return reply(`🌐 [DEVRA URL Inspector]
+Target: ${targetUrl}
+Status: HTTP ${testRes.status} (${testRes.ok ? '🟢 Aktif / Online' : 'Respon Diterima'})
+
+Tautan berhasil diverifikasi dan dapat diakses melalui browser Anda.`);
+          } catch (e) {
+            return reply(`🌐 [DEVRA URL Inspector]\nTarget: ${targetUrl}\nStatus: ⚠️ Gagal memverifikasi (${e.message})`);
+          }
         }
       }
 

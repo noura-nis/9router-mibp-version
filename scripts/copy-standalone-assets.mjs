@@ -45,6 +45,14 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(devraSource, devraDestination, { force: true });
     console.log(`[standalone-assets] Copied devra-agent.mjs to ${devraDestination}`);
   }
+
+  // Inter-Agent Collaboration Bus
+  const busSource = resolve(projectRoot, "agent-bus.mjs");
+  const busDestination = resolve(standaloneDir, "agent-bus.mjs");
+  if (existsSync(busSource)) {
+    cpSync(busSource, busDestination, { force: true });
+    console.log(`[standalone-assets] Copied agent-bus.mjs to ${busDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {
