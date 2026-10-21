@@ -523,6 +523,32 @@ async function handle(msg) {
     }
   }
 
+  // 0. COMMANDS KOORDINASI MULTI-AI: /jobdesk, /lapor, /standup
+  if (cmd === '/jobdesk' || cmd === '/lapor' || cmd === '/standup') {
+    await typing();
+    let reposCount = 0;
+    try {
+      const repos = await listUserRepos();
+      reposCount = repos.length;
+    } catch {}
+
+    const report = `🤖 [LAPORAN HARIAN JOBDESK AI - DEVRA SOFTWARE ENGINEERING]
+Pelapor: DEVRA (Autonomous Software Engineer & Cloud Architect)
+Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.
+
+💻 Divisi Rekayasa Perangkat Lunak, Repositori & Cloud:
+• GitHub Repositories: ${reposCount} Repositori aktif di akun ${GITHUB_OWNER} (Full Read/Write/Commit)
+• Computer Vision & Adapters: Aktif menganalisis screenshot kode, UI bug & arsitektur
+• AI Routing & Gateway: Terkoneksi 9Router MIBP & Bansos Multi-Model (Codestral, DeepSeek, GLM, Fast)
+• Deployment Cloud: Terintegrasi Render Cloud API untuk inspeksi & trigger auto-deploy
+
+🤝 Status Koordinasi Inter-AI:
+• Dengan OTTEROps: Menerima tiket insiden/crash dari radar sentinel untuk inspeksi & auto-fix kode.
+• Dengan Nadia CS: Menerima laporan komplain error fitur dari pengguna untuk di-hotfix ke GitHub.`;
+
+    return reply(report);
+  }
+
   // 1. /start atau /help
   if (cmd === '/start' || cmd === '/help') {
     const helpMsg = `🤖 Halo! Saya DEVRA (Autonomous Software Engineering Agent)
