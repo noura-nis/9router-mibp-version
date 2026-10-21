@@ -514,10 +514,18 @@ async function handle(msg) {
     arg = txt.slice(parts[0].length).trim();
   }
 
-  const isMentioned = txt.toLowerCase().includes('@' + botUsername);
+  // Jika pesan menyebut/mention bot lain secara eksplisit (baik @username bot lain maupun panggilan alami "nadia"/"otter"), abaikan total agar tidak bertubrukan
+  const otherBotMentioned = /@[a-zA-Z0-9_]+bot\b/i.test(txt) && !txt.toLowerCase().includes('@' + botUsername);
+  const otherBotNatural = /\b(nadia|otter|otterops)\b/i.test(txt) && !/\b(devra)\b/i.test(txt);
+  if (otherBotMentioned || otherBotNatural) {
+    return;
+  }
+
+  // Cek apakah bot di-mention (baik username @devra9920_bot maupun panggilan alami "devra") atau direply di grup
+  const isMentioned = txt.toLowerCase().includes('@' + botUsername) || /\b(devra)\b/i.test(txt);
   const isReplyToBot = msg.reply_to_message?.from?.username === botUsername;
 
-  // Di grup, hanya tanggapi jika dipanggil (command, mention, atau reply)
+  // Di grup, hanya tanggapi jika dipanggil (command, mention DEVRA, atau reply ke pesan DEVRA)
   if (isGroup && !isCommand && !isMentioned && !isReplyToBot) {
     return;
   }
@@ -546,6 +554,11 @@ async function handle(msg) {
       cmd = '/repos';
     } else if (lowerPrompt === 'render' || lowerPrompt === 'status deploy' || lowerPrompt === 'status server') {
       cmd = '/render';
+    } else if (lowerPrompt.includes('deploy') || lowerPrompt.includes('redeploy')) {
+      cmd = '/deploy';
+      if (lowerPrompt.includes('bansos') || lowerPrompt.includes('router')) arg = 'bansos-router';
+      else if (lowerPrompt.includes('9router') || lowerPrompt.includes('mibp')) arg = 'devra-9router';
+      else if (lowerPrompt.includes('openplag') || lowerPrompt.includes('plagiat')) arg = 'openplag.id';
     } else if (lowerPrompt === 'sync' || lowerPrompt === 'backup' || lowerPrompt.includes('supabase')) {
       cmd = '/sync';
     } else if (lowerPrompt === 'vault' || lowerPrompt.includes('brankas') || lowerPrompt.includes('kunci api') || lowerPrompt.includes('api key')) {
@@ -723,6 +736,49 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       return reply(out);
     } catch (e) {
       return reply(`❌ Gagal mengambil status Render: ${e.message}`);
+    }
+  }
+
+  // 7b. /deploy <service_name_or_id>
+  if (cmd === '/deploy') {
+    await typing();
+    if (!RENDER_API_KEY) {
+      return reply('⚠️ RENDER_API_KEY belum dikonfigurasi di Environment Variable server Render.');
+    }
+    try {
+      const services = await listRenderServices();
+      let targetArg = arg.trim().toLowerCase();
+      let targetId = null;
+      let targetName = null;
+
+      if (targetArg) {
+        for (const item of services) {
+          const s = item.service || item;
+          if (s.id.toLowerCase() === targetArg || (s.name && s.name.toLowerCase().includes(targetArg))) {
+            if (s.suspended !== 'not_suspended') {
+              return reply(`⚠️ Service ${s.name} (${s.id}) sedang dalam status SUSPENDED (duplikat diamankan untuk melindungi kuota 750 jam). Tidak dapat di-deploy.`);
+            }
+            targetId = s.id;
+            targetName = s.name;
+            break;
+          }
+        }
+      }
+
+      if (!targetId) {
+        let activeList = services
+          .map(item => item.service || item)
+          .filter(s => s.suspended === 'not_suspended')
+          .map(s => `• /deploy ${s.name} (ID: ${s.id})`)
+          .join('\n');
+        return reply(`🚀 [DEVRA CLOUD DEPLOYER]\nFormat: /deploy <nama_atau_id_service>\n\nService Render Aktif:\n${activeList}`);
+      }
+
+      const deployRes = await triggerDeploy(targetId);
+      const dep = deployRes.deploy || deployRes;
+      return reply(`🚀 [DEVRA CLOUD DEPLOYER]\nService: ${targetName} (${targetId})\nDeploy ID: ${dep.id || 'N/A'}\nStatus: 🟢 Triggered (${dep.status || 'created'})\n\nBuild dan deployment sedang berjalan di cloud Render. Sentinel OTTEROps akan memantau liveness secara berkala.`);
+    } catch (e) {
+      return reply(`❌ Gagal memicu deployment Render: ${e.message}`);
     }
   }
 
