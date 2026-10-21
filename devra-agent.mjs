@@ -261,7 +261,8 @@ function addSessionMessage(chatId, role, content) {
 // Bansos / 9Router AI Gateway Caller
 // -------------------------------------------------------------
 async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL, chatId = null) {
-  const candidateModels = [preferredModel, 'Super_Fast_Coding', 'fast', 'codestral-latest', 'Claude_ProReasoning', 'antigravity'];
+  const candidateModels = [preferredModel, 'Super_Fast_Coding', 'Claude_ProReasoning'].filter(m => m && !['fast', 'codestral-latest', 'default'].includes(m));
+  if (!candidateModels.includes('Super_Fast_Coding')) candidateModels.push('Super_Fast_Coding');
   let lastErr = null;
 
   const history = chatId ? getSession(chatId).history : [];
