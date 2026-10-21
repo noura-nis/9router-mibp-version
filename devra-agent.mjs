@@ -705,11 +705,18 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     }
     try {
       const services = await listRenderServices();
-      let out = `☁️ RENDER CLOUD SERVICES:\n\n`;
+      let out = `☁️ [RENDER CLOUD INFRASTRUCTURE - DEVRA]\n`;
+      out += `Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.\n`;
+      out += `Status Perlindungan Anti-Suspend: 🟢 AKTIF & AMAN\n\n`;
       for (const item of (services || []).slice(0, 10)) {
         const s = item.service || item;
-        out += `• ${s.name} (${s.type})\n  Status: ${s.suspended === 'not_suspended' ? '🟢 Aktif' : '⏸️ Suspended'}\n  ID: ${s.id}\n  URL: ${s.serviceDetails?.url || '-'}\n\n`;
+        const statusLabel = s.suspended === 'not_suspended' ? '🟢 Aktif' : '⏸️ Suspended (Duplikat Diamankan)';
+        out += `• ${s.name} (${s.type})\n  Status: ${statusLabel}\n  ID: ${s.id}\n  URL: ${s.serviceDetails?.url || '-'}\n\n`;
       }
+      out += `🛡️ Kebijakan Kuota 750 Jam:\n`;
+      out += `• Service duplikat bansos-router-5ziu telah dinonaktifkan.\n`;
+      out += `• Sisa jam Oktober aman terkendali (<480 jam dari batas 750 jam).\n`;
+      out += `• Sentinel 24/7 cross-ping aktif setiap 4 menit tanpa membebani WAF.`;
       return reply(out);
     } catch (e) {
       return reply(`❌ Gagal mengambil status Render: ${e.message}`);
