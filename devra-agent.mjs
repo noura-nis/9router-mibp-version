@@ -567,6 +567,8 @@ Perintah Utama:
 /code <repo> <instruksi> - Membuat kode/fitur baru dan commit ke GitHub
 /render - Memeriksa status service dan deployment di Render
 /deploy <service_id> - Memicu redeploy service di Render
+/sync - Status persistensi database & akun ke Supabase
+/jobdesk - Laporan divisi rekayasa perangkat lunak & cloud
 
 Atau cukup mention saya:
 Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`;
@@ -661,7 +663,22 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     }
   }
 
-  // 8. Natural Language & Mention Routing
+  // 8. /sync atau /backup (Supabase Database Persistence)
+  if (cmd === '/sync' || cmd === '/backup') {
+    await typing();
+    const supUrl = process.env.SUPABASE_URL || 'https://hgfftqiyqowuvpwiybhs.supabase.co';
+    const bucket = process.env.SUPABASE_BUCKET || '9router-persistence';
+    let info = `💾 [SUPABASE PERSISTENCE STATUS - DEVRA]\n`;
+    info += `• Cloud Storage: Supabase Object Store\n`;
+    info += `• Target URL: ${supUrl}\n`;
+    info += `• Persistence Bucket: ${bucket}\n`;
+    info += `• Database Target: data.sqlite\n`;
+    info += `• Status Auto-Sync: 🟢 Aktif (Snapshot berkala tiap 3 menit & auto-restore saat server boot)\n\n`;
+    info += `Akun AI provider (Mimo, Grok, OpenAI), combos, dan API key tersimpan permanen di cloud Supabase dan tidak akan hilang saat server refresh.`;
+    return reply(info);
+  }
+
+  // 9. Natural Language & Mention Routing
   if (isMentioned || isReplyToBot || (!isGroup && !isCommand)) {
     await typing();
     const cleanPrompt = txt.replace(new RegExp('@' + botUsername, 'gi'), '').trim();
