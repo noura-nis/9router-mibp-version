@@ -16,7 +16,8 @@
     "cli:pack": "npm --prefix cli run pack:cli",
     "cli:publish": "npm --prefix cli run publish:cli",
     "verify:lockfile": "node scripts/verify-lockfile-npm10.mjs",
-    "lockfile:regen": "npx -y npm@10.9.8 install --package-lock-only"
+    "lockfile:regen": "npx -y npm@10.9.8 install --package-lock-only",
+    "devra": "node devra-agent.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

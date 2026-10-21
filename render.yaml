@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: devra-9router
+    env: docker
+    plan: free
+    region: singapore
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 20128
+      - key: DEVRA_BOT_TOKEN
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_OWNER
+        value: noura-nis
+      - key: AI_BASE_URL
+        value: https://bansos-router.onrender.com/v1
+      - key: AI_MODEL
+        value: codestral-latest
+      - key: AI_API_KEY
+        value: bansos
+      - key: RENDER_API_KEY
+        sync: false

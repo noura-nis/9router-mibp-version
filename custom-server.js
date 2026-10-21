@@ -14,6 +14,42 @@ const PEER_TOKEN = crypto.randomBytes(24).toString("hex");
 process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
 
 let backgroundRefreshStarted = false;
+let devraStarted = false;
+
+function startDevraAgentFromCustomServer() {
+  if (devraStarted) return;
+  devraStarted = true;
+  const devraScript = path.join(__dirname, "devra-agent.mjs");
+  if (!fs.existsSync(devraScript)) {
+    console.log("[DEVRA] Agent script not found at " + devraScript);
+    return;
+  }
+  const { fork } = require("child_process");
+  console.log("[DEVRA] Spawning Autonomous Software Engineering Agent...");
+  let child = null;
+  const launch = () => {
+    try {
+      child = fork(devraScript, [], {
+        stdio: "inherit",
+        env: { ...process.env }
+      });
+      child.on("exit", (code) => {
+        console.warn(`[DEVRA] Agent exited with code ${code}. Restarting in 5s...`);
+        setTimeout(launch, 5000);
+      });
+    } catch (err) {
+      console.error("[DEVRA] Failed to launch agent:", err.message);
+    }
+  };
+  launch();
+  const cleanup = () => {
+    if (child) {
+      try { child.kill(); } catch (e) {}
+    }
+  };
+  process.once("SIGINT", cleanup);
+  process.once("SIGTERM", cleanup);
+}
 
 function startBackgroundTokenRefreshFromCustomServer() {
   if (backgroundRefreshStarted) return;
@@ -75,6 +111,7 @@ http.createServer = (...args) => {
   const server = origCreate(...rest, wrapped);
   server.once("listening", () => {
     startBackgroundTokenRefreshFromCustomServer();
+    startDevraAgentFromCustomServer();
   });
   const origEmit = server.emit;
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.

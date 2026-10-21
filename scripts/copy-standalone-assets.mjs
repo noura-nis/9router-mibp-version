@@ -37,6 +37,14 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(serverWrapperSource, serverWrapperDestination, { force: true });
     console.log(`[standalone-assets] Copied custom-server.js to ${serverWrapperDestination}`);
   }
+
+  // DEVRA Autonomous Software Engineering Agent
+  const devraSource = resolve(projectRoot, "devra-agent.mjs");
+  const devraDestination = resolve(standaloneDir, "devra-agent.mjs");
+  if (existsSync(devraSource)) {
+    cpSync(devraSource, devraDestination, { force: true });
+    console.log(`[standalone-assets] Copied devra-agent.mjs to ${devraDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {
