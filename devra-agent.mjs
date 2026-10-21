@@ -915,6 +915,36 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       else if (lower.includes('router') || lower.includes('bansos')) matchedRepo = 'bansos-router';
       else if (lower.includes('mibp') || lower.includes('9router')) matchedRepo = '9router-mibp-version';
       else if (lower.includes('song') || lower.includes('lagu')) matchedRepo = 'ai-song-automation';
+      else if (lower.includes('kti') || lower.includes('karya tulis') || lower.includes('jurnal')) matchedRepo = 'KTI';
+    }
+
+    if (!matchedRepo && replyContext) {
+      const lowerContext = replyContext.toLowerCase();
+      matchedRepo = repoNames.find(name => lowerContext.includes(name.toLowerCase()));
+      if (!matchedRepo) {
+        if (lowerContext.includes('kti')) matchedRepo = 'KTI';
+        else if (lowerContext.includes('openplag')) matchedRepo = 'openplag.id';
+        else if (lowerContext.includes('bansos')) matchedRepo = 'bansos-router';
+      }
+    }
+
+    // Deteksi jika user bertanya apakah bisa memodifikasi kode
+    if ((lower.includes('bisa') || lower.includes('bs') || lower.includes('dapat')) && (lower.includes('modifikasi') || lower.includes('ubah') || lower.includes('edit') || lower.includes('ganti'))) {
+      const targetRepoDisplay = matchedRepo ? `repositori ${matchedRepo}` : 'seluruh repositori GitHub Anda';
+      let out = `Tentu saja bisa Bu Nor! DEVRA memiliki otorisasi penuh (Read, Write, Commit, & Deploy) terhadap ${targetRepoDisplay}.\n\n`;
+      out += `Kemampuan modifikasi yang dapat DEVRA lakukan secara otonom:\n`;
+      out += `1. Memperbaiki Bug & Error: Menemukan dan memperbaiki error pada berkas manapun secara otomatis.\n`;
+      out += `2. Menambah Fitur Baru: Menulis modul fungsi baru, endpoint API, atau antarmuka baru.\n`;
+      out += `3. Refactoring & Optimasi Kode: Merapikan struktur arsitektur kode dan dependensi.\n`;
+      out += `4. Auto Commit & Deploy: Setiap modifikasi langsung di-commit ke branch utama GitHub.\n\n`;
+      if (matchedRepo === 'KTI') {
+        out += `Untuk repositori KTI, berkas yang siap dimodifikasi antara lain:\n`;
+        out += `• app.py (Antarmuka web & routing analitik)\n`;
+        out += `• ai_engine.py (Logika AI & ekstraksi literatur)\n`;
+        out += `• evaluation_module.py (Evaluasi metrik & akurasi)\n\n`;
+      }
+      out += `Silakan beri tahu saya instruksi modifikasi yang Bu Nor inginkan (misal: "tambahkan filter tahun pada ai_engine.py di KTI").`;
+      return reply(out);
     }
 
     if (matchedRepo && (lower.includes('fix') || lower.includes('perbaiki') || lower.includes('error') || lower.includes('bug') || lower.includes('rusak'))) {
