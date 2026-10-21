@@ -74,15 +74,34 @@ async function send(chatId, text, replyToId = null, threadId = null) {
   for (const chunk of chunks) {
     const payload = { chat_id: chatId, text: chunk };
     if (replyToId) payload.reply_to_message_id = replyToId;
-    if (threadId) payload.message_thread_id = threadId;
-    await telegram('sendMessage', payload);
+    if (threadId && threadId !== 1 && !replyToId) payload.message_thread_id = threadId;
+
+    try {
+      await telegram('sendMessage', payload);
+    } catch (err) {
+      if (payload.message_thread_id) {
+        delete payload.message_thread_id;
+        try {
+          await telegram('sendMessage', payload);
+          continue;
+        } catch (e) {}
+      }
+      if (payload.reply_to_message_id) {
+        delete payload.reply_to_message_id;
+        try {
+          await telegram('sendMessage', payload);
+          continue;
+        } catch (e) {}
+      }
+      console.warn(`[DEVRA] Failed to send to ${chatId}:`, err.message);
+    }
   }
 }
 
 async function sendTyping(chatId, threadId = null) {
   try {
     const payload = { chat_id: chatId, action: 'typing' };
-    if (threadId) payload.message_thread_id = threadId;
+    if (threadId && threadId !== 1) payload.message_thread_id = threadId;
     await telegram('sendChatAction', payload);
   } catch (e) {}
 }
@@ -565,6 +584,8 @@ async function handle(msg) {
       cmd = '/vault';
     } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
       cmd = '/help';
+    } else if (lowerPrompt === 'cek' || lowerPrompt === 'ping' || lowerPrompt === 'tes' || lowerPrompt === 'test' || lowerPrompt === 'siaga') {
+      cmd = '/ping';
     }
   }
 
@@ -642,6 +663,11 @@ Perintah Utama:
 Atau cukup mention saya:
 Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`;
     return reply(helpMsg);
+  }
+
+  // 1b. /ping atau /cek
+  if (cmd === '/ping') {
+    return reply(`🤖 Halo Bu Nor Anisa! DEVRA Autonomous Agent tetap aktif dan siap siaga.\nSaat ini saya memantau repositori GitHub (${GITHUB_OWNER}) dan infrastruktur Render.\n\nPerintah cepat:\n/repos ➔ Daftar repositori aktif\n/render ➔ Status service cloud Render\n/read <repo> <path> ➔ Membaca berkas kode\n/fix <repo> <masalah> ➔ Perbaikan bug otomatis`);
   }
 
   // 2. /repos
