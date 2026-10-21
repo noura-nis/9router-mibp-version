@@ -826,9 +826,14 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       let targetName = null;
 
       if (targetArg) {
+        if (targetArg.includes('carijurnal') || targetArg.includes('jurnal') || targetArg.includes('kti')) {
+          targetArg = 'carijurnal';
+        }
         for (const item of services) {
           const s = item.service || item;
-          if (s.id.toLowerCase() === targetArg || (s.name && s.name.toLowerCase().includes(targetArg))) {
+          const sName = (s.name || '').toLowerCase();
+          const sId = (s.id || '').toLowerCase();
+          if (sId === targetArg || sName === targetArg || sName.includes(targetArg) || targetArg.includes(sName)) {
             if (s.suspended !== 'not_suspended') {
               return reply(`⚠️ Service ${s.name} (${s.id}) sedang dalam status SUSPENDED (duplikat diamankan untuk melindungi kuota 750 jam). Tidak dapat di-deploy.`);
             }
@@ -908,23 +913,73 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     const repos = await listUserRepos().catch(() => []);
     const repoNames = repos.map(r => r.name);
 
+    // Periksa apakah ada perbandingan "seperti openplag" atau "mirip openplag"
+    const isOpenplagComparison = /seperti\s+openplag|mirip\s+openplag|kayak\s+openplag/i.test(lower);
+
     // Cari tahu repo mana yang disebut dalam pesan
-    let matchedRepo = repoNames.find(name => lower.includes(name.toLowerCase()));
-    if (!matchedRepo) {
-      if (lower.includes('plagiasi') || lower.includes('openplag')) matchedRepo = 'openplag.id';
-      else if (lower.includes('router') || lower.includes('bansos')) matchedRepo = 'bansos-router';
-      else if (lower.includes('mibp') || lower.includes('9router')) matchedRepo = '9router-mibp-version';
-      else if (lower.includes('song') || lower.includes('lagu')) matchedRepo = 'ai-song-automation';
-      else if (lower.includes('kti') || lower.includes('karya tulis') || lower.includes('jurnal')) matchedRepo = 'KTI';
+    let matchedRepo = null;
+    if (lower.includes('carijurnal') || lower.includes('kti') || lower.includes('karya tulis') || lower.includes('jurnal') || lower.includes('literature review')) {
+      matchedRepo = 'KTI';
+    } else if (lower.includes('plagiasi') || (!isOpenplagComparison && lower.includes('openplag'))) {
+      matchedRepo = 'openplag.id';
+    } else if (lower.includes('router') || lower.includes('bansos')) {
+      matchedRepo = 'bansos-router';
+    } else if (lower.includes('mibp') || lower.includes('9router')) {
+      matchedRepo = '9router-mibp-version';
+    } else if (lower.includes('song') || lower.includes('lagu')) {
+      matchedRepo = 'ai-song-automation';
+    } else {
+      matchedRepo = repoNames.find(name => lower.includes(name.toLowerCase()));
     }
 
     if (!matchedRepo && replyContext) {
       const lowerContext = replyContext.toLowerCase();
-      matchedRepo = repoNames.find(name => lowerContext.includes(name.toLowerCase()));
-      if (!matchedRepo) {
-        if (lowerContext.includes('kti')) matchedRepo = 'KTI';
-        else if (lowerContext.includes('openplag')) matchedRepo = 'openplag.id';
-        else if (lowerContext.includes('bansos')) matchedRepo = 'bansos-router';
+      if (lowerContext.includes('kti') || lowerContext.includes('carijurnal') || lowerContext.includes('literature') || lowerContext.includes('jurnal')) matchedRepo = 'KTI';
+      else if (!isOpenplagComparison && lowerContext.includes('openplag')) matchedRepo = 'openplag.id';
+      else if (lowerContext.includes('bansos')) matchedRepo = 'bansos-router';
+      else matchedRepo = repoNames.find(name => lowerContext.includes(name.toLowerCase()));
+    }
+
+    // Default jika user menyebut "web ini" atau mereply pesan tentang KTI:
+    if (!matchedRepo && (lower.includes('web ini') || lower.includes('aplikasi ini') || lower.includes('proyek ini'))) {
+      matchedRepo = 'KTI';
+    }
+
+    // Deteksi intent membuat web KTI menjadi usaha / bisnis SaaS seperti openplag
+    if ((lower.includes('usaha') || lower.includes('bisnis') || lower.includes('komersial') || isOpenplagComparison) && (matchedRepo === 'KTI' || lower.includes('web ini') || replyContext.toLowerCase().includes('kti') || replyContext.toLowerCase().includes('carijurnal'))) {
+      let out = `💡 [BLUEPRINT ARSITEKTUR & KOMERSIALISASI: CARIJURNAL.ID]\n`;
+      out += `Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.\n\n`;
+      out += `Visi: Menjadikan mesin Semantic Literature Review (KTI) sebagai platform SaaS akademik CariJurnal.id, setara dengan model openplag.id.\n\n`;
+      out += `🚀 Cloud Web Service di Render:\n`;
+      out += `• Nama Service: carijurnal (ID: srv-dbcbm6bl550s73d112e0)\n`;
+      out += `• URL Render: https://carijurnal.onrender.com\n`;
+      out += `• Sumber Repo: https://github.com/${GITHUB_OWNER}/KTI\n`;
+      out += `• Status Build: 🟢 Aktif di Render (Singapore)\n\n`;
+      out += `💰 Rencana Model Usaha (SaaS Akademik):\n`;
+      out += `1. Free Tier: 3 pencarian sintesis literatur per hari untuk akuisisi mahasiswa.\n`;
+      out += `2. Pro Tier / Kuota: Pembelian kuota ekstraksi matriks tinjauan pustaka (Word/Excel) untuk naskah skripsi/tesis.\n`;
+      out += `3. Integrasi Pembayaran: Pembayaran via QRIS Bit & Bean otomatis.\n\n`;
+      out += `DEVRA siap langsung memodifikasi app.py dan antarmuka web untuk memasang branding CariJurnal.id serta fitur komersialisasi ini.`;
+      return reply(out);
+    }
+
+    // Deteksi perintah deploy dalam bahasa alami (misal: "tolong deploy kan di render.com", "deploy carijurnal")
+    if (lower.includes('deploy') && (lower.includes('render') || lower.includes('carijurnal') || lower.includes('kti') || lower.includes('cloud'))) {
+      try {
+        const services = await listRenderServices();
+        let targetService = services.find(item => {
+          const s = item.service || item;
+          const sName = (s.name || '').toLowerCase();
+          return sName === 'carijurnal' || (matchedRepo && sName.includes(matchedRepo.toLowerCase()));
+        });
+        if (targetService) {
+          const s = targetService.service || targetService;
+          const deployRes = await triggerDeploy(s.id);
+          const dep = deployRes.deploy || deployRes;
+          return reply(`🚀 [DEVRA CLOUD DEPLOYER]\nService: ${s.name} (${s.id})\nDeploy ID: ${dep.id || 'N/A'}\nStatus: 🟢 Triggered (${dep.status || 'created'})\nURL: ${s.serviceDetails?.url || 'https://carijurnal.onrender.com'}\n\nBuild dan deployment untuk ${s.name} sedang berjalan di cloud Render.`);
+        }
+      } catch (e) {
+        return reply(`❌ Gagal memicu deployment Render: ${e.message}`);
       }
     }
 
