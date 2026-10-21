@@ -29,9 +29,9 @@ const DEVRA_BOT_TOKEN = process.env.DEVRA_BOT_TOKEN || process.env.TELEGRAM_BOT_
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_PAT || '';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'noura-nis';
 const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
-const AI_BASE_URL = (process.env.AI_BASE_URL || 'https://bansos-router.onrender.com/v1').replace(/\/+$/, '');
-const AI_API_KEY = process.env.AI_API_KEY || 'bansos';
-const PRIMARY_AI_MODEL = process.env.AI_MODEL || 'codestral-latest';
+const AI_BASE_URL = (process.env.AI_BASE_URL || 'http://127.0.0.1:20128/v1').replace(/\/+$/, '');
+const AI_API_KEY = process.env.AI_API_KEY || 'sk-2c65214783660605-nrdr5e-0dbe61d0';
+const PRIMARY_AI_MODEL = process.env.AI_MODEL || 'Super_Fast_Coding';
 
 if (!DEVRA_BOT_TOKEN || DEVRA_BOT_TOKEN === 'disabled') {
   console.log('[DEVRA] Disabled (no DEVRA_BOT_TOKEN configured)');
@@ -207,7 +207,7 @@ async function triggerRenderDeploy(serviceId) {
 // Bansos / 9Router AI Gateway Caller
 // -------------------------------------------------------------
 async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL) {
-  const candidateModels = [preferredModel, 'antigravity', 'deepseek-v4.1-flash-free', 'glm-5.3-flash-free', 'codestral-latest', 'fast'];
+  const candidateModels = [preferredModel, 'Super_Fast_Coding', 'Claude_ProReasoning', 'antigravity', 'fast', 'codestral-latest'];
   let lastErr = null;
 
   for (const model of candidateModels) {
@@ -257,7 +257,7 @@ async function getTelegramPhotoBase64(fileId) {
 }
 
 async function askVisionAI(systemPrompt, userPrompt, base64Image, preferredModel = 'glm-5.3-flash-free') {
-  const candidateModels = ['antigravity', preferredModel, 'glm-5.3-flash-free', 'mimo-v2.6-flash-free', 'gemini-2.0-flash-exp', 'fast'];
+  const candidateModels = ['Super_Fast_Coding', 'Claude_ProReasoning', 'antigravity', preferredModel, 'glm-5.3-flash-free', 'fast'];
   let lastErr = null;
 
   for (const model of candidateModels) {
@@ -355,8 +355,7 @@ async function autonomousCodeFix(chatId, threadId, replyId, repoName, issueDescr
 
     const fixResult = await askAI(
       'Kamu adalah DEVRA, Autonomous Senior Principal Software Engineer. Kamu menghasilkan kode produksi yang bebas bug, modular, dan bersih.',
-      fixPrompt,
-      'codestral-latest'
+      fixPrompt, 'Claude_ProReasoning'
     );
 
     let fixedCode = fixResult.text.trim();
@@ -417,8 +416,7 @@ async function autonomousCreateCode(chatId, threadId, replyId, repoName, instruc
 
     const aiRes = await askAI(
       'Kamu adalah DEVRA, Autonomous Full-Stack AI Engineer. Jawab HANYA dengan format JSON valid tanpa tanda markdown.',
-      codePrompt,
-      'codestral-latest'
+      codePrompt, 'Claude_ProReasoning'
     );
 
     let cleanJson = aiRes.text.trim();
@@ -721,8 +719,7 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       // Jawaban AI Umum Rekayasa Perangkat Lunak
       const aiChat = await askAI(
         `Kamu adalah DEVRA, Autonomous Software Engineering Agent untuk Ir. Nor Anisa, S.Kom., M.Kom. Kamu ahli dalam Python, Node.js, Next.js, FastAPI, database, dan cloud deployment. Jawab dengan ramah, cerdas, solutif, dan tanpa menggunakan karakter asterisk (*).`,
-        cleanPrompt,
-        'fast'
+        cleanPrompt, 'Super_Fast_Coding'
       );
       return reply(aiChat.text);
     } catch (aiErr) {
