@@ -1,0 +1,17 @@
+name: 24/7 Anti-Sleep Sentinel
+on:
+  schedule:
+    # Berjalan otomatis setiap 10 menit dari server GitHub
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping All Render Services 24/7
+        run: |
+          curl -s -f -m 20 -H "User-Agent: GitHubActions-AntiSleep/2.0" https://devra-9router.onrender.com/api/health || echo "devra health ping failed"
+          curl -s -f -m 20 -H "User-Agent: GitHubActions-AntiSleep/2.0" https://devra-9router.onrender.com/ || echo "devra root ping failed"
+          curl -s -f -m 20 -H "User-Agent: GitHubActions-AntiSleep/2.0" https://bansos-router.onrender.com/healthz || echo "bansos ping failed"
+          curl -s -f -m 20 -H "User-Agent: GitHubActions-AntiSleep/2.0" https://openplag-id.onrender.com/ping || echo "openplag ping failed"

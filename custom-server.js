@@ -191,6 +191,25 @@ http.createServer = (...args) => {
     // Schedule periodic backup to Supabase every 3 minutes
     setInterval(backupToSupabaseSync, 180000);
     setTimeout(backupToSupabaseSync, 15000);
+
+    // 24/7 Anti-Sleep Keep-Alive Heartbeat (cross-pings every 4 minutes)
+    const keepAliveUrls = [
+      "https://bansos-router.onrender.com/healthz",
+      "https://devra-9router.onrender.com/api/health",
+      "https://openplag-id.onrender.com/ping"
+    ];
+    const pingKeepAlive = async () => {
+      for (const url of keepAliveUrls) {
+        try {
+          const c = new AbortController();
+          const t = setTimeout(() => c.abort(), 12000);
+          await fetch(url, { headers: { "User-Agent": "DEVRA-AntiSleep/2.0" }, signal: c.signal });
+          clearTimeout(t);
+        } catch (e) {}
+      }
+    };
+    setTimeout(pingKeepAlive, 25000);
+    setInterval(pingKeepAlive, 240000);
   });
   const handleShutdown = async () => {
     console.log("[Supabase Sync] Server shutting down, uploading final database snapshot...");
