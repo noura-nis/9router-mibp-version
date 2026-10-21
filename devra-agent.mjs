@@ -204,11 +204,27 @@ async function triggerRenderDeploy(serviceId) {
 }
 
 // -------------------------------------------------------------
+// Session History Buffer (Memori Konteks Percakapan per Chat)
+// -------------------------------------------------------------
+const sessions = new Map();
+function getSession(chatId) {
+  if (!sessions.has(chatId)) sessions.set(chatId, { history: [] });
+  return sessions.get(chatId);
+}
+function addSessionMessage(chatId, role, content) {
+  const s = getSession(chatId);
+  s.history.push({ role, content });
+  if (s.history.length > 12) s.history = s.history.slice(-12);
+}
+
+// -------------------------------------------------------------
 // Bansos / 9Router AI Gateway Caller
 // -------------------------------------------------------------
-async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL) {
+async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL, chatId = null) {
   const candidateModels = [preferredModel, 'Super_Fast_Coding', 'Claude_ProReasoning', 'antigravity', 'fast', 'codestral-latest'];
   let lastErr = null;
+
+  const history = chatId ? getSession(chatId).history : [];
 
   for (const model of candidateModels) {
     try {
@@ -224,6 +240,7 @@ async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL
           model: model,
           messages: [
             { role: 'system', content: systemPrompt },
+            ...history.slice(-6),
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.2
@@ -236,7 +253,13 @@ async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL
       }
       const data = await res.json();
       const reply = data.choices?.[0]?.message?.content;
-      if (reply) return { text: reply, modelUsed: model };
+      if (reply) {
+        if (chatId) {
+          addSessionMessage(chatId, 'user', userPrompt);
+          addSessionMessage(chatId, 'assistant', reply);
+        }
+        return { text: reply, modelUsed: model };
+      }
     } catch (e) {
       lastErr = e;
       continue;
@@ -499,6 +522,37 @@ async function handle(msg) {
     return;
   }
 
+  // Bersihkan mention bot dari teks pertanyaan
+  let cleanPrompt = txt.replace(new RegExp('@' + botUsername, 'gi'), '').trim();
+  if (isCommand && arg) cleanPrompt = arg;
+
+  // Tangkap konteks pesan Telegram jika user membalas (reply) pesan
+  let replyContext = '';
+  if (msg.reply_to_message) {
+    const rep = msg.reply_to_message;
+    const repSender = rep.from?.first_name || rep.from?.username || 'User';
+    const repText = rep.text || rep.caption || (rep.photo ? '[Gambar Screenshot/Lampiran]' : '');
+    if (repText) {
+      replyContext = `[Konteks pesan Telegram sebelumnya yang di-reply oleh Bu Nor Anisa dari ${repSender}]:\n"${repText}"\n\n`;
+    }
+  }
+
+  // Natural language mapping: jika bukan slash command, deteksi kata kunci operasional
+  if (!cmd) {
+    const lowerPrompt = cleanPrompt.toLowerCase();
+    if (lowerPrompt === 'laporan' || lowerPrompt === 'lapor' || lowerPrompt.startsWith('lapor') || lowerPrompt.includes('jobdesk') || lowerPrompt.includes('standup')) {
+      cmd = '/jobdesk';
+    } else if (lowerPrompt === 'repos' || lowerPrompt === 'daftar repo' || lowerPrompt === 'repo list') {
+      cmd = '/repos';
+    } else if (lowerPrompt === 'render' || lowerPrompt === 'status deploy' || lowerPrompt === 'status server') {
+      cmd = '/render';
+    } else if (lowerPrompt === 'sync' || lowerPrompt === 'backup' || lowerPrompt.includes('supabase')) {
+      cmd = '/sync';
+    } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
+      cmd = '/help';
+    }
+  }
+
   const reply = (text) => send(id, text, isGroup ? messageId : null, threadId);
   const typing = () => sendTyping(id, threadId);
 
@@ -679,7 +733,6 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
   // 9. Natural Language & Mention Routing
   if (isMentioned || isReplyToBot || (!isGroup && !isCommand)) {
     await typing();
-    const cleanPrompt = txt.replace(new RegExp('@' + botUsername, 'gi'), '').trim();
 
     // Deteksi apakah user ingin memperbaiki bug atau membuat kode
     const lower = cleanPrompt.toLowerCase();
@@ -716,10 +769,21 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
         }
       }
 
-      // Jawaban AI Umum Rekayasa Perangkat Lunak
+      // Jawaban AI Rekayasa Perangkat Lunak & Diskusi Teknis
+      const fullUserPrompt = replyContext ? `${replyContext}Pesan/Instruksi Bu Nor Anisa:\n${cleanPrompt}` : cleanPrompt;
       const aiChat = await askAI(
-        `Kamu adalah DEVRA, Autonomous Software Engineering Agent untuk Ir. Nor Anisa, S.Kom., M.Kom. Kamu ahli dalam Python, Node.js, Next.js, FastAPI, database, dan cloud deployment. Jawab dengan ramah, cerdas, solutif, dan tanpa menggunakan karakter asterisk (*).`,
-        cleanPrompt, 'Super_Fast_Coding'
+        `Anda adalah DEVRA, Autonomous Principal Software Engineer & Cloud Infrastructure Architect untuk Ir. Nor Anisa, S.Kom., M.Kom. di AI Engineering & Research Lab.
+Pimpinan Anda adalah Ir. Nor Anisa, S.Kom., M.Kom. Sapa beliau dengan takzim dan profesional: "Bu Nor" atau "Bu Nor Anisa".
+
+PANDUAN KOMUNIKASI & ETIKA KERJA:
+1. DILARANG KERAS menggunakan gaya bahasa customer service klise, basa-basi kosong, atau kalimat robotik (seperti "Hai! Saya senang Anda memberi tahu saya...", "Apakah ada bagian tertentu yang membuat Anda bingung?"). Anda adalah Principal Engineer dan partner teknis Bu Nor Anisa.
+2. Jika ada komplain atau kritik terhadap sistem/chat (misal "chatnya aneh", "km baca sendiri"), langsung sadari dan pahami konteks pesan sebelumnya yang di-reply, akui kekeliruan dengan rendah hati tanpa berkelit, dan sampaikan evaluasi teknis serta langkah perbaikan konkret.
+3. Jawaban harus to-the-point, berbobot teknis tinggi, berorientasi solusi, dan terstruktur rapi.
+4. DILARANG KERAS menggunakan karakter asterisk (*) dalam format teks markdown maupun teks biasa.
+5. Anda menguasai penuh seluruh repositori GitHub noura-nis, deploy Render, persistence Supabase, dan model AI 9Router.`,
+        fullUserPrompt,
+        'Super_Fast_Coding',
+        id
       );
       return reply(aiChat.text);
     } catch (aiErr) {
