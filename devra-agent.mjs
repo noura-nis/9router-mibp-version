@@ -130,6 +130,18 @@ async function listUserRepos() {
   return repos.filter(r => r.owner && r.owner.login.toLowerCase() === GITHUB_OWNER.toLowerCase());
 }
 
+async function createNewRepo(repoName, description = '', isPrivate = false) {
+  return githubRequest('/user/repos', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: repoName,
+      description: description || `Repository created autonomously by DEVRA Agent for Ir. Nor Anisa, S.Kom., M.Kom.`,
+      private: isPrivate,
+      auto_init: true
+    })
+  });
+}
+
 async function getRepoTree(repo, branch = 'main') {
   try {
     const commit = await githubRequest(`/repos/${GITHUB_OWNER}/${repo}/commits/${branch}`);
@@ -689,6 +701,23 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
     }
   }
 
+  // 2b. /newrepo <nama_repo> [deskripsi]
+  if (cmd === '/newrepo') {
+    const parts = arg.trim().split(/\s+/);
+    const repoName = parts[0]?.trim();
+    if (!repoName) {
+      return reply('Format: /newrepo <nama_repositori> [deskripsi]\nContoh: /newrepo microservice-auth Layanan autentikasi JWT');
+    }
+    const description = parts.slice(1).join(' ') || 'Created autonomously by DEVRA Agent for Ir. Nor Anisa, S.Kom., M.Kom.';
+    await typing();
+    try {
+      const newRepo = await createNewRepo(repoName, description);
+      return reply(`🎉 [DEVRA GITHUB CREATOR]\nRepositori baru berhasil dibuat di akun ${GITHUB_OWNER}!\n\n• Nama: ${newRepo.name}\n• URL: ${newRepo.html_url}\n• Visibilitas: ${newRepo.private ? '🔒 Private' : '🌐 Public'}\n• Branch Utama: ${newRepo.default_branch || 'main'}\n\nAnda dapat meminta DEVRA untuk langsung menambahkan berkas kode:\n/code ${newRepo.name} <nama_file> <instruksi>`);
+    } catch (e) {
+      return reply(`❌ Gagal membuat repositori ${repoName}: ${e.message}`);
+    }
+  }
+
   // 3. /files <repo>
   if (cmd === '/files') {
     if (!arg) return reply('Format salah. Contoh penggunaan:\n/files openplag.id');
@@ -875,6 +904,22 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
 
     if (matchedRepo && (lower.includes('buat') || lower.includes('bikin') || lower.includes('tambah') || lower.includes('code') || lower.includes('fitur'))) {
       return autonomousCreateCode(id, threadId, isGroup ? messageId : null, matchedRepo, cleanPrompt);
+    }
+
+    // Deteksi jika user bertanya apakah bisa membuat repository / minta buat repo baru
+    if ((lower.includes('buat') || lower.includes('bikin') || lower.includes('create')) && (lower.includes('repo') || lower.includes('repository'))) {
+      const matchName = cleanPrompt.match(/(?:repo|repository)\s+([a-zA-Z0-9_.-]+)/i);
+      const candidateName = matchName ? matchName[1].replace(/[^a-zA-Z0-9_.-]/g, '') : null;
+      if (candidateName && !['baru', 'apakah', 'bisa', 'tolong', 'apa'].includes(candidateName.toLowerCase())) {
+        try {
+          const newRepo = await createNewRepo(candidateName, 'Created autonomously by DEVRA Agent for Ir. Nor Anisa, S.Kom., M.Kom.');
+          return reply(`🎉 [DEVRA GITHUB CREATOR]\nRepositori baru berhasil dibuat di akun ${GITHUB_OWNER}!\n\n• Nama: ${newRepo.name}\n• URL: ${newRepo.html_url}\n• Visibilitas: ${newRepo.private ? '🔒 Private' : '🌐 Public'}\n• Branch Utama: ${newRepo.default_branch || 'main'}\n\nAnda dapat meminta DEVRA untuk langsung menambahkan berkas kode:\n/code ${newRepo.name} <nama_file> <instruksi>`);
+        } catch (e) {
+          return reply(`❌ Gagal membuat repositori ${candidateName}: ${e.message}`);
+        }
+      } else {
+        return reply(`🤖 Tentu saja Bu Nor Anisa! DEVRA memiliki otorisasi penuh ke GitHub (${GITHUB_OWNER}) dan dapat membuat repositori baru secara otonom kapan saja.\n\nUntuk membuat repositori baru, Bu Nor cukup ketik:\n/newrepo <nama_repo> [deskripsi]\natau langsung perintahkan saya:\n@${botUsername} buat repository nama-proyek-baru\n\nSetelah repositori dibuat, saya bisa langsung menuliskan berkas kode, README, dan konfigurasi cloud Render secara otomatis.`);
+      }
     }
 
     try {
