@@ -261,59 +261,72 @@ function addSessionMessage(chatId, role, content) {
 // Bansos / 9Router AI Gateway Caller
 // -------------------------------------------------------------
 async function askAI(systemPrompt, userPrompt, preferredModel = PRIMARY_AI_MODEL, chatId = null) {
-  const candidateModels = [preferredModel, 'Super_Fast_Coding', 'Claude_ProReasoning'].filter(m => m && !['fast', 'codestral-latest', 'default'].includes(m));
-  if (!candidateModels.includes('Super_Fast_Coding')) candidateModels.push('Super_Fast_Coding');
+  const history = chatId ? getSession(chatId).history : [];
   let lastErr = null;
 
-  const history = chatId ? getSession(chatId).history : [];
+  const endpoints = [
+    {
+      url: `${AI_BASE_URL}/chat/completions`,
+      key: AI_API_KEY,
+      models: [preferredModel, 'Super_Fast_Coding', 'Claude_ProReasoning', 'gh/gpt-4o-mini', 'glm-5.3-flash-free', 'codestral-latest'].filter(Boolean)
+    },
+    {
+      url: 'https://bansos-router.onrender.com/v1/chat/completions',
+      key: 'bansos',
+      models: ['glm-5.3-flash-free', 'codestral-latest', 'fast', 'default']
+    }
+  ];
 
-  for (const model of candidateModels) {
-    try {
-      const c = new AbortController();
-      const timer = setTimeout(() => c.abort(), 120000);
-      const res = await fetch(`${AI_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${AI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...history.slice(-6),
-            { role: 'user', content: userPrompt }
-          ],
-          stream: false,
-          temperature: 0.2
-        }),
-        signal: c.signal
-      });
-      clearTimeout(timer);
-      if (!res.ok) {
-        throw new Error(`AI HTTP ${res.status}`);
-      }
-      const rawText = await res.text();
-      let reply = null;
+  for (const ep of endpoints) {
+    for (const model of ep.models) {
       try {
-        const data = JSON.parse(rawText);
-        reply = data.choices?.[0]?.message?.content;
-      } catch (jsonErr) {
-        const matches = [...rawText.matchAll(/"content":"((?:[^"\\]|\\.)*)"/g)];
-        if (matches.length > 0) {
-          reply = matches.map(m => m[1]).join('').replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        const c = new AbortController();
+        const timer = setTimeout(() => c.abort(), 45000);
+        const res = await fetch(ep.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${ep.key}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...history.slice(-6),
+              { role: 'user', content: userPrompt }
+            ],
+            stream: false,
+            temperature: 0.2
+          }),
+          signal: c.signal
+        });
+        clearTimeout(timer);
+        if (!res.ok) {
+          throw new Error(`AI HTTP ${res.status}`);
         }
-      }
-      if (reply) {
-        if (chatId) {
-          addSessionMessage(chatId, 'user', userPrompt);
-          addSessionMessage(chatId, 'assistant', reply);
+        const rawText = await res.text();
+        let reply = null;
+        try {
+          const data = JSON.parse(rawText);
+          reply = data.choices?.[0]?.message?.content;
+        } catch (jsonErr) {
+          const matches = [...rawText.matchAll(/"content":"((?:[^"\\]|\\.)*)"/g)];
+          if (matches.length > 0) {
+            reply = matches.map(m => m[1]).join('').replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          }
         }
-        return { text: reply, modelUsed: model };
+        if (reply && reply.trim()) {
+          if (chatId) {
+            addSessionMessage(chatId, 'user', userPrompt);
+            addSessionMessage(chatId, 'assistant', reply.trim());
+          }
+          const epName = ep.url.includes('bansos') ? 'Bansos' : '9Router';
+          return { text: reply.trim(), modelUsed: `${model} (${epName})` };
+        }
+      } catch (e) {
+        lastErr = e;
+        continue;
       }
-    } catch (e) {
-      lastErr = e;
-      continue;
     }
   }
   throw new Error(`Semua AI model gateway gagal: ${lastErr?.message}`);
@@ -376,6 +389,73 @@ async function askVisionAI(systemPrompt, userPrompt, base64Image, preferredModel
 // -------------------------------------------------------------
 // Autonomous Engineering Workflows
 // -------------------------------------------------------------
+async function autonomousCodeAudit(chatId, threadId, replyId, repoName, userQuery) {
+  const reply = (text) => send(chatId, text, replyId, threadId);
+  const typing = () => sendTyping(chatId, threadId);
+
+  await reply(`🔍 DEVRA Autonomous Agent sedang melakukan audit kode & inspeksi diagnostik pada repositori ${repoName}...\nPermintaan: "${userQuery}"`);
+  await typing();
+
+  try {
+    const repos = await listUserRepos();
+    const matched = repos.find(r => r.name.toLowerCase() === repoName.toLowerCase() || r.name.toLowerCase().includes(repoName.toLowerCase()));
+    if (!matched) {
+      return reply(`❌ Repositori "${repoName}" tidak ditemukan di akun ${GITHUB_OWNER}.`);
+    }
+
+    const actualRepo = matched.name;
+    const defaultBranch = matched.default_branch || 'main';
+    const tree = await getRepoTree(actualRepo, defaultBranch);
+    const fileList = tree
+      .filter(f => f.type === 'blob' && !f.path.includes('node_modules') && !f.path.includes('.git/') && !f.path.includes('.next/'))
+      .map(f => f.path);
+
+    // Dapatkan berkas utama untuk audit
+    const mainFile = fileList.find(f => f === 'app.py' || f === 'server.js' || f === 'server.py' || f === 'index.js') || fileList[0];
+    let fileSnippet = '';
+    if (mainFile) {
+      const fileData = await getFileContent(actualRepo, mainFile, defaultBranch);
+      fileSnippet = fileData.content.slice(0, 15000);
+    }
+
+    const auditPrompt = `Anda adalah Senior Lead Software Architect & Security Auditor DEVRA.
+Pengguna menanyakan: "${userQuery}"
+Repositori Target: ${actualRepo} (Branch: ${defaultBranch})
+Berkas Utama Diperiksa: ${mainFile}
+
+Cuplikan Berkas (${mainFile}):
+\`\`\`
+${fileSnippet}
+\`\`\`
+
+Tugas:
+Lakukan audit komprehensif atas pertanyaan pengguna. Jelaskan apakah ada bug kritis, status kesehatan kode, arsitektur, dan apakah repositori siap produksi.
+Berikan respons yang terstruktur, percaya diri, profesional, dan ramah dalam Bahasa Indonesia:
+1. Ringkasan Status (Sehat / Ada Isu)
+2. Hasil Pemeriksaan Sintaks & Arsitektur
+3. Konfigurasi Fitur & Integrasi Terakhir
+4. Rekomendasi atau Tindakan Lanjutan jika diperlukan.`;
+
+    const auditRes = await askAI(
+      'Kamu adalah DEVRA, Senior Principal Software Architect and Code Auditor. Berikan audit kode yang mendalam, akurat, dan profesional.',
+      auditPrompt,
+      'Claude_ProReasoning'
+    );
+
+    let report = `📋 LAPORAN AUDIT & DIAGNOSTIK KODE — DEVRA\n\n`;
+    report += `📁 Repositori: ${actualRepo} (Branch: ${defaultBranch})\n`;
+    report += `📄 Berkas Utama Diinspeksi: ${mainFile}\n`;
+    report += `🧠 Model Auditor: ${auditRes.modelUsed}\n\n`;
+    report += `${auditRes.text}`;
+
+    await reply(report);
+
+  } catch (err) {
+    console.error('[DEVRA Autonomous Audit Error]', err);
+    await reply(`❌ Error saat menjalankan Autonomous Audit: ${err.message}`);
+  }
+}
+
 async function autonomousCodeFix(chatId, threadId, replyId, repoName, issueDescription) {
   const reply = (text) => send(chatId, text, replyId, threadId);
   const typing = () => sendTyping(chatId, threadId);
@@ -1005,7 +1085,14 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
       return reply(out);
     }
 
-    if (matchedRepo && (lower.includes('fix') || lower.includes('perbaiki') || lower.includes('error') || lower.includes('bug') || lower.includes('rusak'))) {
+    // Deteksi jika pertanyaan / audit kode (misal: "apakah ada bug", "cek bug", "audit kode")
+    const isQuestionOrAudit = lower.includes('apakah') || lower.includes('ada bug') || lower.includes('cek') || lower.includes('audit') || lower.includes('review') || lower.includes('gimana') || lower.includes('status');
+
+    if (matchedRepo && isQuestionOrAudit && (lower.includes('bug') || lower.includes('error') || lower.includes('masalah') || lower.includes('audit'))) {
+      return autonomousCodeAudit(id, threadId, isGroup ? messageId : null, matchedRepo, cleanPrompt);
+    }
+
+    if (matchedRepo && (lower.includes('fix') || lower.includes('perbaiki') || lower.includes('ganti kode') || lower.includes('patch'))) {
       return autonomousCodeFix(id, threadId, isGroup ? messageId : null, matchedRepo, cleanPrompt);
     }
 
