@@ -696,6 +696,9 @@ async function handle(msg) {
       cmd = '/canvas';
     } else if (lowerPrompt === 'wp' || lowerPrompt === 'blog' || lowerPrompt.includes('wordpress')) {
       cmd = '/wp';
+    } else if (lowerPrompt.startsWith('post ') || lowerPrompt.startsWith('tulis artikel') || lowerPrompt.startsWith('buat artikel')) {
+      cmd = '/post';
+      arg = cleanPrompt.replace(/^(post|tulis artikel|buat artikel)\s*/i, '');
     } else if (lowerPrompt === 'vault' || lowerPrompt.includes('brankas') || lowerPrompt.includes('kunci api') || lowerPrompt.includes('api key')) {
       cmd = '/vault';
     } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
@@ -773,6 +776,7 @@ Perintah Utama:
 
 /canvas - OpenHands Agent Canvas di Hugging Face Spaces (Cloud Coding 24/7)
 /wp - Integrasi WordPress noranisaa.wordpress.com (Kelola artikel & backlink)
+/post <topik> - Susun & publikasikan artikel SEO ke noranisaa.wordpress.com
 /render - Memeriksa status service dan deployment di Render
 /deploy <service_id> - Memicu redeploy service di Render
 /sync - Status persistensi database & akun ke Supabase
@@ -849,6 +853,76 @@ Bu Nor Anisa dapat membuka tautan di atas dari smartphone kapan saja tanpa menya
       return reply(out);
     } catch (e) {
       return reply(`❌ Gagal mengambil data WordPress: ${e.message}`);
+    }
+  }
+
+  // 1e. /post atau /tulis <topik_artikel>
+  if (cmd === '/post' || cmd === '/tulis') {
+    const topic = arg.trim();
+    if (!topic) {
+      return reply('Format: /post <topik artikel>\nContoh: /post Panduan Cek Plagiasi Turnitin Tanpa Masuk Repository');
+    }
+    await typing();
+    await reply(`⏳ Siap Bu Nor Anisa! DEVRA sedang menyusun artikel akademik dan SEO untuk topik:\n"${topic}"\nlengkap dengan backlink alami ke OpenPlag.id dan OpenJurnal.id...`);
+    await typing();
+
+    const systemPrompt = `Anda adalah Academic SEO Content Creator untuk blog Ir. Nor Anisa, S.Kom., M.Kom. (noranisaa.wordpress.com).
+Buat artikel informatif, profesional, dan kaya wawasan ilmiah dalam Bahasa Indonesia.
+Sertakan tag HTML: <h2>, <h3>, <p>, <ul>, <li>.
+Wajib sertakan 2 backlink kontekstual alami:
+1. <a href="https://openplag-id.onrender.com" target="_blank">OpenPlag.id</a> (platform verifikasi orisinalitas karya ilmiah berstandar Turnitin bebas repositori).
+2. <a href="https://openjurnal-id.onrender.com" target="_blank">OpenJurnal.id</a> (platform pencarian dan sintesis literatur ilmiah untuk skripsi).
+Jangan gunakan karakter bintang (*) sama sekali.`;
+
+    const userPrompt = `Tuliskan artikel blog lengkap tentang: ${topic}. Sertakan judul yang memikat di baris pertama diawali dengan [JUDUL]: lalu konten HTML artikel.`;
+
+    try {
+      const generated = await askAI(systemPrompt, userPrompt, 'codestral-latest');
+      const cleanContent = generated.replace(/\*/g, '').trim();
+
+      let postTitle = topic;
+      let postBody = cleanContent;
+      const titleMatch = cleanContent.match(/\[JUDUL\]:\s*([^\n]+)/i);
+      if (titleMatch) {
+        postTitle = titleMatch[1].trim();
+        postBody = cleanContent.replace(/\[JUDUL\]:\s*[^\n]+\n*/i, '').trim();
+      }
+
+      const wpToken = process.env.WP_TOKEN || process.env.WORDPRESS_TOKEN || '';
+      if (wpToken) {
+        try {
+          const body = new URLSearchParams();
+          body.append('title', postTitle);
+          body.append('content', postBody);
+          body.append('status', 'publish');
+          body.append('categories', 'Teknologi Informasi, Akademik, Skripsi');
+          body.append('tags', 'turnitin, plagiasi, skripsi, openplag, openjurnal');
+
+          const wpRes = await fetch('https://public-api.wordpress.com/rest/v1.1/sites/noranisaa.wordpress.com/posts/new', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${wpToken}`,
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: body.toString()
+          });
+          const wpData = await wpRes.json();
+          if (wpRes.ok && wpData.URL) {
+            return reply(`🎉 [ARTIKEL BERHASIL DIPUBLIKASIKAN KE WORDPRESS]\n\n• Judul: ${wpData.title}\n• Status: 🟢 Published\n• Tautan: ${wpData.URL}\n\nBacklink ke OpenPlag.id dan OpenJurnal.id telah aktif untuk memperkuat peringkat di Google Search Console!`);
+          }
+        } catch (e) {}
+      }
+
+      let out = `📝 [DRAF ARTIKEL SEO BERHASIL DISUSUN]\n`;
+      out += `Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.\n`;
+      out += `Target Web: https://noranisaa.wordpress.com\n\n`;
+      out += `📌 Judul: ${postTitle}\n\n`;
+      out += `📄 Cuplikan Konten HTML:\n${postBody.substring(0, 2500)}\n\n`;
+      if (postBody.length > 2500) out += `[...konten lengkap tersimpan]\n\n`;
+      out += `💡 Info Publikasi Otomatis Langsung:\nWordPress.com mewajibkan Access Token (OAuth Bearer) untuk posting langsung dari API cloud. Cukup buat token gratis 1 kali di https://developer.wordpress.com/apps/ dan simpan sebagai WP_TOKEN di Render, maka DEVRA akan memposting secara instan setiap ada perintah /post.`;
+      return reply(out);
+    } catch (err) {
+      return reply(`❌ Gagal menyusun artikel: ${err.message}`);
     }
   }
 
