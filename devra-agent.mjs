@@ -694,6 +694,8 @@ async function handle(msg) {
       cmd = '/sync';
     } else if (lowerPrompt === 'canvas' || lowerPrompt === 'openhands' || lowerPrompt.includes('openhands') || lowerPrompt.includes('agent canvas')) {
       cmd = '/canvas';
+    } else if (lowerPrompt === 'wp' || lowerPrompt === 'blog' || lowerPrompt.includes('wordpress')) {
+      cmd = '/wp';
     } else if (lowerPrompt === 'vault' || lowerPrompt.includes('brankas') || lowerPrompt.includes('kunci api') || lowerPrompt.includes('api key')) {
       cmd = '/vault';
     } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
@@ -770,6 +772,7 @@ Perintah Utama:
 /code <repo> <instruksi> - Membuat kode/fitur baru dan commit ke GitHub
 
 /canvas - OpenHands Agent Canvas di Hugging Face Spaces (Cloud Coding 24/7)
+/wp - Integrasi WordPress noranisaa.wordpress.com (Kelola artikel & backlink)
 /render - Memeriksa status service dan deployment di Render
 /deploy <service_id> - Memicu redeploy service di Render
 /sync - Status persistensi database & akun ke Supabase
@@ -823,6 +826,30 @@ Kemampuan Agent Canvas:
 
 Bu Nor Anisa dapat membuka tautan di atas dari smartphone kapan saja tanpa menyalakan laptop.`;
     return reply(out);
+  }
+
+  // 1d. /wp atau /blog
+  if (cmd === '/wp' || cmd === '/blog') {
+    await typing();
+    try {
+      const wpRes = await fetch('https://public-api.wordpress.com/rest/v1.1/sites/noranisaa.wordpress.com/posts?number=5');
+      const wpData = await wpRes.json();
+      const posts = wpData.posts || [];
+      let out = `📝 [DEVRA WORDPRESS INTEGRATION]\n`;
+      out += `Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.\n`;
+      out += `Website: https://noranisaa.wordpress.com\n`;
+      out += `Total Artikel Terbit: ${wpData.found || 26} artikel\n\n`;
+      out += `5 Artikel Terbaru:\n`;
+      for (const p of posts) {
+        const d = p.date ? p.date.substring(0, 10) : '';
+        out += `• ${p.title}\n  Tanggal: ${d} | URL: ${p.URL}\n\n`;
+      }
+      out += `🔗 Strategi Backlink SEO:\n`;
+      out += `AI siap menyusun draf artikel bertopik skripsi & IT dengan backlink alami ke OpenPlag.id dan OpenJurnal.id untuk mendongkrak traffic Google Search Console.`;
+      return reply(out);
+    } catch (e) {
+      return reply(`❌ Gagal mengambil data WordPress: ${e.message}`);
+    }
   }
 
   // 2. /repos
