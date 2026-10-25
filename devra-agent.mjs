@@ -872,6 +872,7 @@ Sertakan tag HTML: <h2>, <h3>, <p>, <ul>, <li>.
 Wajib sertakan 2 backlink kontekstual alami:
 1. <a href="https://openplag-id.onrender.com" target="_blank">OpenPlag.id</a> (platform verifikasi orisinalitas karya ilmiah berstandar Turnitin bebas repositori).
 2. <a href="https://openjurnal-id.onrender.com" target="_blank">OpenJurnal.id</a> (platform pencarian dan sintesis literatur ilmiah untuk skripsi).
+Jangan menyertakan baris 'Ditulis oleh:' atau tanda tangan di akhir artikel.
 Jangan gunakan karakter bintang (*) sama sekali.`;
 
     const userPrompt = `Tuliskan artikel blog lengkap tentang: ${topic}. Sertakan judul yang memikat di baris pertama diawali dengan [JUDUL]: lalu konten HTML artikel.`;
