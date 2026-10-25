@@ -13,6 +13,7 @@ const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
+  poweredByHeader: false,
   // Dev via IP/hostname (e.g. VPS): ALLOWED_DEV_ORIGINS="76.13.17.78,example.com"
   // silences Next's cross-origin dev warning without hardcoding hosts in repo.
   allowedDevOrigins: (process.env.ALLOWED_DEV_ORIGINS || "")
