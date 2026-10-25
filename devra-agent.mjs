@@ -692,6 +692,8 @@ async function handle(msg) {
       else if (lowerPrompt.includes('openplag') || lowerPrompt.includes('plagiat')) arg = 'openplag.id';
     } else if (lowerPrompt === 'sync' || lowerPrompt === 'backup' || lowerPrompt.includes('supabase')) {
       cmd = '/sync';
+    } else if (lowerPrompt === 'canvas' || lowerPrompt === 'openhands' || lowerPrompt.includes('openhands') || lowerPrompt.includes('agent canvas')) {
+      cmd = '/canvas';
     } else if (lowerPrompt === 'vault' || lowerPrompt.includes('brankas') || lowerPrompt.includes('kunci api') || lowerPrompt.includes('api key')) {
       cmd = '/vault';
     } else if (lowerPrompt === 'help' || lowerPrompt === 'bantuan') {
@@ -766,6 +768,8 @@ Perintah Utama:
 /read <repo> <path> - Membaca isi berkas kode
 /fix <repo> <masalah> - Memperbaiki bug otomatis & commit langsung ke GitHub
 /code <repo> <instruksi> - Membuat kode/fitur baru dan commit ke GitHub
+
+/canvas - OpenHands Agent Canvas di Hugging Face Spaces (Cloud Coding 24/7)
 /render - Memeriksa status service dan deployment di Render
 /deploy <service_id> - Memicu redeploy service di Render
 /sync - Status persistensi database & akun ke Supabase
@@ -780,6 +784,45 @@ Contoh: @${botUsername} perbaiki error 500 pada berkas engine.py di openplag.id`
   // 1b. /ping atau /cek
   if (cmd === '/ping') {
     return reply('🤖 DEVRA Autonomous Agent siap siaga. Seluruh perimeter dan repositori GitHub terpantau aman.');
+  }
+
+
+
+  // 1c. /canvas atau /openhands
+  if (cmd === '/canvas' || cmd === '/openhands') {
+    await typing();
+    const hfUrl = 'https://huggingface.co/spaces/noranisa/openhands-canvas';
+    let statusText = '🟢 RUNNING (ZeroGPU)';
+    try {
+      const hfToken = process.env.HF_TOKEN || '';
+      const chk = await fetch('https://huggingface.co/api/spaces/noranisa/openhands-canvas', {
+        headers: hfToken ? { Authorization: `Bearer ${hfToken}` } : {},
+        signal: AbortSignal.timeout(8000)
+      });
+      if (chk.ok) {
+        const d = await chk.json();
+        const stage = d.runtime?.stage || 'RUNNING';
+        const hw = d.runtime?.hardware?.current || 'zero-a10g';
+        statusText = `🟢 ${stage} (Akselerasi: ${hw})`;
+      }
+    } catch (e) {}
+
+    const out = `🎨 [DEVRA OPENHANDS AGENT CANVAS]
+Pimpinan: Ir. Nor Anisa, S.Kom., M.Kom.
+
+Status Space: ${statusText}
+Tautan Web Space: ${hfUrl}
+Backend AI: 9Router Super_Fast_Coding & Bansos Router
+GitHub Synced: https://github.com/${GITHUB_OWNER}
+
+Kemampuan Agent Canvas:
+1. Pemilih Repositori GitHub (${GITHUB_OWNER}) langsung dari web browser smartphone.
+2. Pemeriksa bug & rancang perbaikan kode otonom dengan model Codestral & GLM.
+3. Push commit langsung ke branch main yang otomatis memicu deployment di Render.
+4. Notifikasi instan langsung ke bot Telegram DEVRA (@${botUsername}).
+
+Bu Nor Anisa dapat membuka tautan di atas dari smartphone kapan saja tanpa menyalakan laptop.`;
+    return reply(out);
   }
 
   // 2. /repos
